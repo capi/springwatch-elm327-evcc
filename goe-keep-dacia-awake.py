@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
+from datetime import datetime, timedelta
+import json
 import requests
 import sys
-from datetime import datetime, timedelta
 import time
 
 GOE_HOST="http://192.168.1.91"
 EVCC_HOST="http://192.168.1.2:7070"
 EVCC_LOADPOINT_ID=1
+TIMELINE_FILE="goe-keep-dacia-awake.timeline.json"
 
 EXIT_OK=0
 EXIT_WARNING=1
@@ -97,7 +99,6 @@ def evcc_wait_charging(expected, timeout):
       print(f"ERROR: {e}")
   return False
 
-
 def set_force_state(state):
   url = f'{GOE_HOST}/api/set?frc={state}'
   print(f"Calling {url}...")
@@ -115,19 +116,10 @@ def get_state():
   data = response.json()
   return data
 
-def deadline_expired(current_time, epoch, lastCarStateChangedFromCharging):
-  print(f"Checking how long in \"complete\" state...")
-  ms = lastCarStateChangedFromCharging or 0 # we only consider from charging, if this info is not available force wakeup 
-
-  starttime = epoch + timedelta(milliseconds=ms) if ms > 0 else datetime.fromtimestamp(0)
-  deadline = starttime + timedelta(hours=8)
-  deadline_delta = deadline - current_time
-  deepsleep = starttime + timedelta(hours=10)
-  deepsleep_delta = deepsleep - current_time
-  print(f"Considering {starttime.strftime('%Y-%m-%d %H:%M:%S')} in wake-up calculation.")
-  print(f"Car will deep-sleep around {deepsleep.strftime('%Y-%m-%d %H:%M:%S')}. This is in {deepsleep_delta}.")
-  print(f"Deadline for wakeup charge is {deadline.strftime('%Y-%m-%d %H:%M:%S')}. This is in {deadline_delta}.")
-  return deadline < current_time
+def deadline_expired(timeline):
+  now = timeline["now"]
+  deadline = timeline["deadline"]
+  return deadline < now
 
 def wake_via_goe():
   print()
@@ -169,6 +161,69 @@ def wake_via_evcc(old_mode, old_soc_limit):
   print(f"Resetting to mode={old_mode}")
   evcc_set_charge_mode(old_mode)
 
+def save_timeline(timeline):
+  try:
+    with open(TIMELINE_FILE, "w") as f:
+      timeline_json = {}
+      for key, value in timeline.items():
+        if not key.endswith("_IGNORED"):
+          timeline_json[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+      json.dump(timeline_json, f, indent=2, default=str)
+  except Exception as e:
+    print(f"Failed storing timeline.json, skipping: {e}")
+
+def load_timeline():
+  try:
+    with open(TIMELINE_FILE, "r") as f:
+      timeline_as_strings = json.load(f)
+      timeline = {}
+      for key, value in timeline_as_strings.items():
+        timeline[key] = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+      return timeline
+  except Exception as e:
+    print(f"Failed loading timeline, starting with an empty timeline. Reason: {e}")
+    return {}
+
+def build_timeline():
+  timeline = load_timeline()
+  timeline["now"] = current_time
+  timeline["reboot"] = epoch
+
+  if lastCarStateChangedFromIdle:
+    if "lastCarStateChangedFromIdle" not in timeline or lastCarStateChangedFromIdle >= 60*1000:
+       # store it if there is no other information in the loaded timeline
+       # or if it is clearly not reset due to a device reboot (within 60s of device reboot)
+       timeline["lastCarStateChangedFromIdle"] = timeline["reboot"] + timedelta(milliseconds=lastCarStateChangedFromIdle)
+    else:
+      timeline["lastCarStateChangedFromIdle__IGNORED"] = timeline["reboot"] + timedelta(milliseconds=lastCarStateChangedFromIdle)
+  if lastCarStateChangedFromCharging:
+    timeline["lastCarStateChangedFromCharging"] = timeline["reboot"] + timedelta(milliseconds=lastCarStateChangedFromCharging)
+  if lastCarStateChangedToCharging:
+    timeline["lastCarStateChangedToCharging"] = timeline["reboot"] + timedelta(milliseconds=lastCarStateChangedToCharging)
+
+  # calculate deadlines
+  starttime = timeline.get("lastCarStateChangedFromCharging", datetime.fromtimestamp(0))
+  if "lastCarStateChangedFromIdle" in timeline:
+    diff_secs = abs(timeline["lastCarStateChangedFromIdle"] - timeline["reboot"]).total_seconds()
+    if diff_secs > 60 and timeline["lastCarStateChangedFromIdle"] > starttime:
+      print("Using lastCarStateChangedFromIdle {timeline['lastCarStateChangedFromIdle']} since it's the later event.")
+      starttime = timeline["lastCarStateChangedFromIdle"]
+  if "lastCarStateChangedToCharging" in timeline:
+    if timeline["lastCarStateChangedToCharging"] > starttime:
+      starttime = timeline["lastCarStateChangedToCharging"]
+
+  deadline = starttime + timedelta(hours=8)
+  deepsleep = starttime + timedelta(hours=10)
+  # put calculated events into timeline
+  timeline["deadline"] = deadline
+  timeline["deepsleep"] = deepsleep
+
+  save_timeline(timeline)
+  return timeline
+
+def sorted_timeline(timeline):
+  return sorted(timeline.items(), key=lambda e: e[1] or datetime.fromtimestamp(0))
+
 ###################### MAIN LOGIC ##########################
 
 # Call the function to get the state data
@@ -198,7 +253,7 @@ lp_vehicle_soc = lp["vehicleSoc"]
 
 ######### SHOW DATA USED FOR DECISSION MAKING #########
 
-print(f"Raw data: {state}")
+print(f"Raw go-eCharger data: {state}")
 print()
 print(f"Model Status:   {modelStatusString} ({modelStatus})")
 print(f"Force State:    {forceStateName} ({forceState})")
@@ -207,18 +262,12 @@ print()
 
 current_time = datetime.now()
 epoch = current_time - timedelta(milliseconds=timeSinceReboot)
-important_timestamps = {
-  "now": current_time,
-  "reboot": epoch,
-  "lastCarStateChangedFromIdle": (epoch + timedelta(milliseconds=lastCarStateChangedFromIdle)) if lastCarStateChangedFromIdle else None,
-  "lastCarStateChangedFromCharging": (epoch + timedelta(milliseconds=lastCarStateChangedFromCharging)) if lastCarStateChangedFromCharging else None,
-  "lastCarStateChangedToCharging": (epoch + timedelta(milliseconds=lastCarStateChangedToCharging)) if lastCarStateChangedToCharging else None,
-}
-important_timestamps_sorted_by_time = sorted(important_timestamps.items(), key=lambda e: e[1] or datetime.fromtimestamp(0))
-# Print the time of each event in the past
-for event, event_time in important_timestamps_sorted_by_time:
+timeline = build_timeline()
+
+for event, event_time in sorted_timeline(timeline):
   if event_time:
     print(f"{event_time.strftime('%Y-%m-%d %H:%M:%S')}: {event}")
+
 print()
 print("=" * 72)
 print()
@@ -235,7 +284,7 @@ try:
   if carState == 2 or forceState == 2:
     print("Currently charging or charge already forced.")
   elif carState == 3 or carState == 4: # waitCar or complete, but no charging forced yet
-    if (deadline_expired(current_time=current_time, epoch=epoch, lastCarStateChangedFromCharging=lastCarStateChangedFromCharging)):
+    if (deadline_expired(timeline)):
       if forceState == 1:
         if (lp_mode == "pv" or lp_mode == "off") and lp_vehicle_soc <= 99 :
           wake_via_evcc(old_mode=lp_mode, old_soc_limit=lp_soc_limit)
@@ -249,7 +298,8 @@ try:
         print(f"forceState is {forceStateName} ({forceState}), don't know how to handle.")
         sys.exit(EXIT_CRITICAL)
     else:
-      print("Nothing to do. Waiting for deadline to expire.")
+      time_remaining = timeline["deadline"] - timeline["now"]
+      print(f"Nothing to do. Waiting for deadline to expire. Time remaining: {time_remaining}")
   else:
     print(f"Don't know how to handle carState={carStateString} ({carState}). Help!")
     sys.exit(EXIT_CRITICAL)
