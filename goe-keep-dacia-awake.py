@@ -142,6 +142,8 @@ def wake_via_goe():
     print(f"  {i}: car={carDict.get(new_car_state, new_car_state)}")
     if new_car_state == 2:
       print(f"Charging started, this has woken up the car. We are done.")
+      print(f"Charging for 2 minutes.")
+      time.sleep(2 * 60)
       break;
     time.sleep(1)
 
@@ -155,7 +157,9 @@ def wake_via_evcc(old_mode, old_soc_limit):
   evcc_set_soc_limit(100)
   evcc_set_charge_mode("minpv")
   print("Waiting for charge to be started...")
-  evcc_wait_charging(True, 180)
+  if (evcc_wait_charging(True, 180)):
+    print(f"Let charge continue for 5 minutes at minpv...")
+    time.sleep(5 * 60)
   print(f"Resetting to soc_limit={old_soc_limit}...")
   evcc_set_soc_limit(old_soc_limit)
   print(f"Stopping charge now.")
@@ -226,9 +230,11 @@ print()
 
 ######### DECISSION MAKING #########
 try:
+  if carState== 1:
+    print("No car connected to charger.")
   if carState == 2 or forceState == 2:
-    print("Currently charging or charge already forced, all is good or we can't do anything anyways.")
-  elif carState == 4: # complete
+    print("Currently charging or charge already forced.")
+  elif carState == 3 or carState == 4: # waitCar or complete, but no charging forced yet
     if (deadline_expired(current_time=current_time, epoch=epoch, lastCarStateChangedFromCharging=lastCarStateChangedFromCharging)):
       if forceState == 1:
         if (lp_mode == "pv" or lp_mode == "off") and lp_vehicle_soc <= 99 :

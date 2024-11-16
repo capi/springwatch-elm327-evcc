@@ -18,7 +18,7 @@
 	},
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip config --user set global.index ${PYPI_PROXY}/pypii && pip config --user set global.index-url ${PYPI_PROXY}/simple && pip3 install --user -r requirements.txt",
+	"postCreateCommand": "pip config --user set global.index ${PYPI_PROXY}/pypii && pip config --user set global.index-url ${PYPI_PROXY}/simple && pip3 install --user -r requirements.txt"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
