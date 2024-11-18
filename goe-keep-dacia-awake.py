@@ -279,9 +279,9 @@ print()
 
 ######### DECISSION MAKING #########
 try:
-  if carState== 1:
+  if carState == 1:
     print("No car connected to charger.")
-  if carState == 2 or forceState == 2:
+  elif carState == 2 or forceState == 2:
     print("Currently charging or charge already forced.")
   elif carState == 3 or carState == 4: # waitCar or complete, but no charging forced yet
     if (deadline_expired(timeline)):
@@ -291,6 +291,7 @@ try:
         else:
           # don't know if we can do it via evcc, trigger directly at go-echarger
           wake_via_goe()
+        print("Wake-up procedure completed.")
         sys.exit(EXIT_WARNING) # I want cron-mails for now!
       elif forceState == 2:
         print("Already forced on, nothing to do...")
