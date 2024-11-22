@@ -90,9 +90,13 @@ class Elm327Session:
                 logging.warning("INIT ERROR: %s not acknowledged: %s", cmd, first_line)
         logging.info("Initialization of adapter done.")
 
-    def read_device_battery_voltage(self):
+    def read_device_battery_voltage(self) -> float:
         v = self._comm.send_cmd_get_first_line(b"ATRV")
-        logging.info("Device Voltage: %s", v)
+        if len(v) == 0:
+            return 0.0
+        if v[-1] == ord("V"):
+            v = v[0:-1]
+        return float(v)
 
 
 class Elm327Connection:
@@ -123,8 +127,7 @@ class Elm327Connection:
             self._connected = True
             logging.info(f"Connected to {self.host}:{self.port}")
         except socket.timeout:
-            logging.debug(f"Timeout occurred. Unable to connect within {
-                self.timeout} seconds.")
+            logging.debug(f"Timeout occurred. Unable to connect within {self.timeout} seconds.")
         except ConnectionRefusedError:
             logging.warning("The server is not accepting connections from this host or port.")
         except Exception as e:
@@ -151,9 +154,15 @@ class Elm327Connection:
 
 
 def main_loop(con: Elm327Connection):
+    last_device_voltage = 0.0
     with con.new_session() as session:
         while True:
-            session.read_device_battery_voltage()
+            logging.debug("Session loop start.")
+            v = session.read_device_battery_voltage()
+            if (last_device_voltage != v):
+                logging.info("Device voltage changed: %sV", v)
+                last_device_voltage = v
+            logging.debug("Session loop end. Sleep 3s.")
             time.sleep(3)
 
 
