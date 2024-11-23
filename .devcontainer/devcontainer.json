@@ -7,7 +7,14 @@
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
-		"ghcr.io/georgofenbeck/features/lazygit-linuxbinary:1": {}
+		"ghcr.io/georgofenbeck/features/lazygit-linuxbinary:1": {},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": true,
+			"installDockerBuildx": true,
+			"installDockerComposeSwitch": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "v2"
+		}
 	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
