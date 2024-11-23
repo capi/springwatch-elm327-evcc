@@ -3,9 +3,11 @@ FROM python:3.12-slim
 RUN useradd --create-home --shell /bin/bash --uid 1000 --user-group user
 RUN pip3 install pyserial paho-mqtt
 
-COPY . /app
+COPY requirements.txt /app/
 WORKDIR /app
 RUN pip3 install -r requirements.txt
+
+COPY . /app/
 
 USER user
 
