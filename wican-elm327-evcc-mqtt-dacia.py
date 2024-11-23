@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+from datetime import datetime, timedelta
 import logging
 import os
 import time
 import socket
 import sys
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Any, Optional
 
 # =============== SETUP LOGGING ===============
 
@@ -39,6 +40,7 @@ try:
     WICAN_IP = print_and_get_required_env("ELM327_HOST", default="127.0.0.1")
     WICAN_ELM327_PORT = int(print_and_get_required_env("ELM327_PORT", default="3333"))
     SOC_PERCENT_CORRECTION = float(print_and_get_required_env("SOC_PERCENT_CORRECTION", "0.0"))
+    OBD2_SLEEP_VOLTAGE = float(print_and_get_required_env("OBD2_SLEEP_VOLTAGE", "13.0"))
     logging.info("-" * 40)
 except Exception as e:
     logging.critical(str(e))
@@ -46,6 +48,55 @@ except Exception as e:
 
 
 # =============== LOGIC ===============
+
+class Reading:
+    def __init__(self, name: str, value: Any = None, last_read: Optional[datetime] = None):
+        self.name = name
+        self.value = value
+        self.last_read: Optional[datetime] = None
+
+    def update(self, value: Any) -> bool:
+        changed = self.value != value
+        self.value = value
+        self.last_read = datetime.now()
+        return changed
+
+
+class WorldView:
+    def __init__(self, sleep_voltage: float):
+        self._car_connected = False
+        self._car_connected_when: Optional[datetime] = None
+        self._disconnected_when: Optional[datetime] = None
+        self.charging = False
+        self.sleep_voltage = sleep_voltage
+        self.battery_12v_voltage = Reading(name="12V Battery Voltage")
+        self.battery_hv_soc_percent = Reading(name="HV Battery SoC %")
+
+    @property
+    def car_connected(self):
+        return self._car_connected
+
+    @car_connected.setter
+    def car_connected(self, value: bool):
+        if value == self._car_connected:
+            return
+        self._car_connected = value
+        if value:
+            self._car_connected_when = datetime.now()
+        else:
+            self._car_disconnected_when = datetime.now()
+
+    @property
+    def car_connected_when(self):
+        return self._car_connected_when
+
+    @property
+    def car_disconnected_when(self):
+        return self._car_disconnected_when
+
+    def is_car_awake(self):
+        r = self.battery_12v_voltage
+        return self.car_connected and r.value and r.value >= self.sleep_voltage
 
 
 class Elm327Communicator:
@@ -207,29 +258,59 @@ class Elm327Connection:
         return Elm327Session(self._socket)
 
 
-def poll_loop(con: Elm327Connection):
-    last_device_voltage = 0.0
-    last_soc_percentage = 0.0
-    with con.new_session() as session:
-        last_soc_percentage = 0.0
+def poll_loop_lv_battery(world: WorldView, session: Elm327Session):
+    # we update the 12V battery reading on every tick
+    # it's our indicator if car is awake or sleeping
+    v = session.read_device_battery_voltage()
+    if v > 0:
+        if world.battery_12v_voltage.update(v):
+            logging.info("Device voltage changed: %.1fV", v)
+
+
+def should_poll_hv_battery_info(world: WorldView):
+    if not world.car_connected or not world.car_connected_when:
+        return False
+    r = world.battery_hv_soc_percent
+    if r.value is None:
+        return True
+    if not r.last_read or r.last_read < world.car_connected_when:
+        # last value was read last in a previous session
+        return True
+    # update every 2 minutes
+    td: timedelta
+    if world.charging:
+        td = timedelta(minutes=5)
+    elif world.is_car_awake():
+        td = timedelta(hours=1)
+    else:
+        td = timedelta(hours=6)
+
+    return datetime.now() - r.last_read > td
+
+
+def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
+    if should_poll_hv_battery_info(world):
+        raw_soc = session.read_hv_battery_soc()
+        if raw_soc > 0:
+            soc_perc = raw_soc + SOC_PERCENT_CORRECTION
+            world.battery_hv_soc_percent.update(soc_perc)
+            logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", soc_perc, raw_soc)
+        pass
+
+
+def poll_loop(world: WorldView, elm327_con: Elm327Connection):
+    with elm327_con.new_session() as session:
+        world.car_connected = True
         while True:
             logging.debug("Session loop start.")
-            v = session.read_device_battery_voltage()
-            if (last_device_voltage != v):
-                logging.info("Device voltage changed: %.1fV", v)
-                last_device_voltage = v
-
-            if last_soc_percentage == 0.0:
-                raw_soc = session.read_hv_battery_soc()
-                if raw_soc > 0:
-                    last_soc_percentage = raw_soc + SOC_PERCENT_CORRECTION
-                    logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", last_soc_percentage, raw_soc)
-
-            logging.debug("Session loop end. Sleep 3s.")
+            poll_loop_lv_battery(world, session)
+            poll_loop_hv_battery_soc_percent(world, session)
             time.sleep(3)
 
 
+world = WorldView(sleep_voltage=OBD2_SLEEP_VOLTAGE)
 while True:
+    world.car_connected = False
     logging.info("Waiting for elm327 device to be reachable...")
     with Elm327Connection(WICAN_IP, WICAN_ELM327_PORT) as con:
         while not con.connect():
@@ -238,8 +319,10 @@ while True:
             time.sleep(1)
         logging.info("Connection to car established.")
         try:
-            poll_loop(con)
+            poll_loop(world=world, elm327_con=con)
         except Exception as e:
             logging.warning("Error in main processing loop: %s", str(e))
+        finally:
+            world.car_connected = False
     logging.info("Monitoring session completed.")
     time.sleep(1)
