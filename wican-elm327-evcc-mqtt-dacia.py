@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+import logging
+import os
 import time
 import socket
-import logging
+from dotenv import load_dotenv
 from typing import Optional
 
-WICAN_IP = "192.168.1.92"
-WICAN_ELM327_PORT = 3333
+# =============== SETUP LOGGING ===============
 
 FORMAT = '%(asctime)s %(name)-15s %(levelname)-7s %(message)s'
 logging.basicConfig(format=FORMAT, level=logging.INFO)
@@ -18,6 +19,31 @@ SESSION_LOG.setLevel(logging.INFO)
 
 CON_LOG = logging.getLogger("elm327.con")
 CON_LOG.setLevel(logging.INFO)
+
+# ===============  LOAD ENVIRONMENT ===============
+
+load_dotenv()
+
+
+def print_and_get_required_env(env: str, default: Optional[str] = None) -> str:
+    val = os.getenv(env, default=default)
+    if val is None:
+        raise Exception(f"Missing required environment variable {env}")
+    logging.info("%-25s = %s", env, val)
+    return val
+
+
+try:
+    logging.info("-" * 40)
+    WICAN_IP = print_and_get_required_env("ELM327_HOST", default="127.0.0.1")
+    WICAN_ELM327_PORT = int(print_and_get_required_env("ELM327_PORT", default="3333"))
+    logging.info("-" * 40)
+except Exception as e:
+    logging.critical(str(e))
+    exit(1)
+
+
+# =============== LOGIC ===============
 
 
 class Elm327Communicator:
