@@ -3,3 +3,4 @@
 .vscode
 Dockerfile
 Makefile
+__pycache__
