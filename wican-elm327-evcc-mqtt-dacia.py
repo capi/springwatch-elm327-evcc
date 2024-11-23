@@ -37,6 +37,7 @@ try:
     logging.info("-" * 40)
     WICAN_IP = print_and_get_required_env("ELM327_HOST", default="127.0.0.1")
     WICAN_ELM327_PORT = int(print_and_get_required_env("ELM327_PORT", default="3333"))
+    SOC_PERCENT_CORRECTION = float(print_and_get_required_env("SOC_PERCENT_CORRECTION", "0.0"))
     logging.info("-" * 40)
 except Exception as e:
     logging.critical(str(e))
@@ -218,9 +219,10 @@ def poll_loop(con: Elm327Connection):
                 last_device_voltage = v
 
             if last_soc_percentage == 0.0:
-                last_soc_percentage = session.read_hv_battery_soc()
-                if last_soc_percentage > 0:
-                    logging.info("HV Battery SoC: %.2f%%", last_soc_percentage)
+                raw_soc = session.read_hv_battery_soc()
+                if raw_soc > 0:
+                    last_soc_percentage = raw_soc + SOC_PERCENT_CORRECTION
+                    logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", last_soc_percentage, raw_soc)
 
             logging.debug("Session loop end. Sleep 3s.")
             time.sleep(3)
