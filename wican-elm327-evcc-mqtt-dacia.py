@@ -3,13 +3,14 @@ import logging
 import os
 import time
 import socket
+import sys
 from dotenv import load_dotenv
 from typing import Optional
 
 # =============== SETUP LOGGING ===============
 
 FORMAT = '%(asctime)s %(name)-15s %(levelname)-7s %(message)s'
-logging.basicConfig(format=FORMAT, level=logging.INFO)
+logging.basicConfig(format=FORMAT, level=logging.INFO, stream=sys.stdout)
 
 COMM_LOG = logging.getLogger("elm327.comm")
 COMM_LOG.setLevel(logging.WARNING)
