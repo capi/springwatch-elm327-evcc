@@ -50,3 +50,30 @@ class WorldView:
     def is_car_awake(self):
         r = self.battery_12v_voltage
         return self.car_connected and r.value and r.value >= self.sleep_voltage
+
+    def is_from_current_session(self, reading: Reading) -> bool:
+        con_when = self.car_connected_when
+        r_when = reading.last_read
+        return con_when is not None and r_when is not None and r_when >= con_when
+
+
+class ModelPublisher():
+    def __init__(self):
+        pass
+
+    def publish(self, world: WorldView) -> None:
+        pass
+
+
+class StdOutModelPublisher(ModelPublisher):
+    def __init__(self):
+        ModelPublisher.__init__(self)
+
+    def publish(self, world: WorldView) -> None:
+        readings = [world.battery_12v_voltage, world.battery_hv_soc_percent]
+        print("-" * 50)
+        for reading in readings:
+            if reading.value is not None:
+                assert reading.last_read
+                print("%-20s: %-6s (%s)" % (reading.name, reading.value, reading.last_read))
+        print("-" * 50)

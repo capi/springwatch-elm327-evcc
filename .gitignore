@@ -1,3 +1,5 @@
 /goe-keep-dacia-awake.timeline.json
 /.env
+
 __pycache__
+*.log

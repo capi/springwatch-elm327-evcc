@@ -6,7 +6,7 @@ import time
 import sys
 from dotenv import load_dotenv
 from springwatch.elm327 import Elm327Connection, Elm327Session
-from springwatch.model import WorldView
+from springwatch.model import ModelPublisher, StdOutModelPublisher, WorldView
 from typing import Optional
 
 
@@ -43,10 +43,16 @@ try:
     WICAN_ELM327_PORT = int(print_and_get_required_env("ELM327_PORT", default="3333"))
     SOC_PERCENT_CORRECTION = float(print_and_get_required_env("SOC_PERCENT_CORRECTION", "0.0"))
     OBD2_SLEEP_VOLTAGE = float(print_and_get_required_env("OBD2_SLEEP_VOLTAGE", "13.0"))
+    MODEL_PUBLISHER = print_and_get_required_env("MODEL_PUBLISHER", "none")
     logging.info("-" * 40)
 except Exception as e:
     logging.critical(str(e))
     exit(1)
+
+MODEL_PUBLISHER_FACTORIES = {
+    "none": lambda: ModelPublisher(),
+    "stdout": lambda: StdOutModelPublisher()
+}
 
 
 # =============== LOGIC ===============
@@ -81,7 +87,6 @@ def should_poll_hv_battery_info(world: WorldView):
     return datetime.now(UTC) - r.last_read > td
 
 
-
 def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
     if should_poll_hv_battery_info(world):
         raw_soc = session.read_hv_battery_soc()
@@ -92,18 +97,26 @@ def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
         pass
 
 
-def poll_loop(world: WorldView, elm327_con: Elm327Connection):
+def poll_loop(world: WorldView, elm327_con: Elm327Connection, publisher: ModelPublisher):
     with elm327_con.new_session() as session:
         world.car_connected = True
         while True:
             logging.debug("Session loop start.")
             poll_loop_lv_battery(world, session)
             poll_loop_hv_battery_soc_percent(world, session)
+            publisher.publish(world)
             logging.debug("Session loop end. Sleeping 3 seconds")
             time.sleep(3)
 
 
 world = WorldView(sleep_voltage=OBD2_SLEEP_VOLTAGE)
+
+if MODEL_PUBLISHER in MODEL_PUBLISHER_FACTORIES:
+    publisher = MODEL_PUBLISHER_FACTORIES[MODEL_PUBLISHER]()
+else:
+    logging.warning("Unknown publisher: %s", MODEL_PUBLISHER)
+    publisher = ModelPublisher()
+
 while True:
     world.car_connected = False
     logging.info("Waiting for elm327 device to be reachable...")
@@ -114,7 +127,7 @@ while True:
             time.sleep(1)
         logging.info("Connection to car established.")
         try:
-            poll_loop(world=world, elm327_con=con)
+            poll_loop(world=world, elm327_con=con, publisher=publisher)
         except Exception as e:
             logging.warning("Error in main processing loop: %s", str(e))
         finally:
