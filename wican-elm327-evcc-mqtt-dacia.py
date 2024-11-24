@@ -9,6 +9,8 @@ from springwatch.elm327 import Elm327Connection, Elm327Session
 from springwatch.model import ModelPublisher, StdOutModelPublisher, WorldView
 from typing import Optional
 
+from springwatch.mqtt import MqttModelPublisher
+
 
 # =============== SETUP LOGGING ===============
 
@@ -44,6 +46,9 @@ try:
     SOC_PERCENT_CORRECTION = float(print_and_get_required_env("SOC_PERCENT_CORRECTION", "0.0"))
     OBD2_SLEEP_VOLTAGE = float(print_and_get_required_env("OBD2_SLEEP_VOLTAGE", "13.0"))
     MODEL_PUBLISHER = print_and_get_required_env("MODEL_PUBLISHER", "none")
+    MQTT_BROKER_HOST = print_and_get_required_env("MQTT_BROKER_HOST", "127.0.0.1")
+    MQTT_BROKER_PORT = int(print_and_get_required_env("MQTT_BROKER_PORT", "1883"))
+    MQTT_BASE_TOPIC = print_and_get_required_env("MQTT_BASE_TOPIC", f"springwatch/{WICAN_IP}")
     logging.info("-" * 40)
 except Exception as e:
     logging.critical(str(e))
@@ -51,7 +56,8 @@ except Exception as e:
 
 MODEL_PUBLISHER_FACTORIES = {
     "none": lambda: ModelPublisher(),
-    "stdout": lambda: StdOutModelPublisher()
+    "stdout": lambda: StdOutModelPublisher(),
+    "mqtt": lambda: MqttModelPublisher(host=MQTT_BROKER_HOST, port=MQTT_BROKER_PORT, base_topic=MQTT_BASE_TOPIC)
 }
 
 

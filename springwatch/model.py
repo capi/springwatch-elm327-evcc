@@ -3,8 +3,9 @@ from typing import Any, Optional
 
 
 class Reading:
-    def __init__(self, name: str, value: Any = None, last_read: Optional[datetime] = None):
+    def __init__(self, name: str, short_name: str, value: Any = None, last_read: Optional[datetime] = None):
         self.name = name
+        self.short_name = short_name
         self.value = value
         self.last_read: Optional[datetime] = None
 
@@ -22,8 +23,8 @@ class WorldView:
         self._disconnected_when: Optional[datetime] = None
         self.charging = False
         self.sleep_voltage = sleep_voltage
-        self.battery_12v_voltage = Reading(name="12V Battery Voltage")
-        self.battery_hv_soc_percent = Reading(name="HV Battery SoC %")
+        self.battery_12v_voltage = Reading(name="12V Battery Voltage", short_name="12v_voltage")
+        self.battery_hv_soc_percent = Reading(name="HV Battery SoC %", short_name="hv_soc")
 
     @property
     def car_connected(self):
