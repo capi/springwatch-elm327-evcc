@@ -14,7 +14,7 @@ from springwatch.mqtt import MqttModelPublisher
 
 # =============== SETUP LOGGING ===============
 
-FORMAT = '%(asctime)s %(name)-15s %(levelname)-7s %(message)s'
+FORMAT = '%(asctime)s %(name)-20s %(levelname)-8s %(message)s'
 logging.basicConfig(format=FORMAT, level=logging.INFO, stream=sys.stdout)
 
 COMM_LOG = logging.getLogger("elm327.comm")
