@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Optional
 
 
@@ -11,7 +11,7 @@ class Reading:
     def update(self, value: Any) -> bool:
         changed = self.value != value
         self.value = value
-        self.last_read = datetime.now()
+        self.last_read = datetime.now(UTC)
         return changed
 
 
@@ -35,9 +35,9 @@ class WorldView:
             return
         self._car_connected = value
         if value:
-            self._car_connected_when = datetime.now()
+            self._car_connected_when = datetime.now(UTC)
         else:
-            self._car_disconnected_when = datetime.now()
+            self._car_disconnected_when = datetime.now(UTC)
 
     @property
     def car_connected_when(self):

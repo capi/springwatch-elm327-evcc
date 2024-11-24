@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import logging
 import os
 import time
@@ -78,8 +78,8 @@ def should_poll_hv_battery_info(world: WorldView):
         td = timedelta(hours=1)
     else:
         td = timedelta(hours=6)
+    return datetime.now(UTC) - r.last_read > td
 
-    return datetime.now() - r.last_read > td
 
 
 def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
@@ -99,6 +99,7 @@ def poll_loop(world: WorldView, elm327_con: Elm327Connection):
             logging.debug("Session loop start.")
             poll_loop_lv_battery(world, session)
             poll_loop_hv_battery_soc_percent(world, session)
+            logging.debug("Session loop end. Sleeping 3 seconds")
             time.sleep(3)
 
 
