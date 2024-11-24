@@ -6,6 +6,7 @@ import time
 import sys
 from dotenv import load_dotenv
 from springwatch.elm327 import Elm327Connection, Elm327Session
+from springwatch.evcc import EvccClient
 from springwatch.model import ModelPublisher, StdOutModelPublisher, WorldView
 from typing import Optional
 
@@ -49,6 +50,8 @@ try:
     MQTT_BROKER_HOST = print_and_get_required_env("MQTT_BROKER_HOST", "127.0.0.1")
     MQTT_BROKER_PORT = int(print_and_get_required_env("MQTT_BROKER_PORT", "1883"))
     MQTT_BASE_TOPIC = print_and_get_required_env("MQTT_BASE_TOPIC", f"springwatch/{WICAN_IP}")
+    EVCC_URL = print_and_get_required_env("EVCC_URL", "")
+    EVCC_LOADPOINT_ID = int(print_and_get_required_env("EVCC_LOADPOINT_ID", "1"))
     logging.info("-" * 40)
 except Exception as e:
     logging.critical(str(e))
@@ -75,26 +78,35 @@ def poll_loop_lv_battery(world: WorldView, session: Elm327Session):
 
 def should_poll_hv_battery_info(world: WorldView):
     if not world.car_connected or not world.car_connected_when:
-        return False
+        return False, "Car is not connected."
     r = world.battery_hv_soc_percent
     if r.value is None:
-        return True
+        return True, "No known value yet."
     if not r.last_read or r.last_read < world.car_connected_when:
         # last value was read last in a previous session
-        return True
+        return True, "Value is from previous session."
     # update every 2 minutes
-    td: timedelta
-    if world.charging:
+    if world.charging_enabled and not world.is_charging:
+        # this is the wakeup case this is all about...
+        td = timedelta(minutes=1)
+        reason = "Charging enabled but not charging..."
+    elif world.is_charging:
         td = timedelta(minutes=5)
+        reason = "Currently charging."
     elif world.is_car_awake():
+        reason = "Car is awake."
         td = timedelta(hours=1)
     else:
+        reason = "Periodic check."
         td = timedelta(hours=6)
-    return datetime.now(UTC) - r.last_read > td
+    res = datetime.now(UTC) - r.last_read > td
+    return res, reason
 
 
 def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
-    if should_poll_hv_battery_info(world):
+    should_poll, reason = should_poll_hv_battery_info(world)
+    if should_poll:
+        logging.info("Polling for HV SoC: %s", reason)
         raw_soc = session.read_hv_battery_soc()
         if raw_soc > 0:
             soc_perc = raw_soc + SOC_PERCENT_CORRECTION
@@ -103,11 +115,13 @@ def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
         pass
 
 
-def poll_loop(world: WorldView, elm327_con: Elm327Connection, publisher: ModelPublisher):
+def poll_loop(world: WorldView, elm327_con: Elm327Connection, evcc: Optional[EvccClient], publisher: ModelPublisher):
     with elm327_con.new_session() as session:
         world.car_connected = True
         while True:
             logging.debug("Session loop start.")
+            if evcc:
+                evcc.update(world)
             poll_loop_lv_battery(world, session)
             poll_loop_hv_battery_soc_percent(world, session)
             publisher.publish(world)
@@ -116,6 +130,7 @@ def poll_loop(world: WorldView, elm327_con: Elm327Connection, publisher: ModelPu
 
 
 world = WorldView(sleep_voltage=OBD2_SLEEP_VOLTAGE)
+evcc = EvccClient(evcc_url=EVCC_URL, loadpoint_id=EVCC_LOADPOINT_ID) if EVCC_URL else None
 
 if MODEL_PUBLISHER in MODEL_PUBLISHER_FACTORIES:
     publisher = MODEL_PUBLISHER_FACTORIES[MODEL_PUBLISHER]()
@@ -133,7 +148,7 @@ while True:
             time.sleep(1)
         logging.info("Connection to car established.")
         try:
-            poll_loop(world=world, elm327_con=con, publisher=publisher)
+            poll_loop(world=world, elm327_con=con, evcc=evcc, publisher=publisher)
         except Exception as e:
             logging.warning("Error in main processing loop: %s", str(e))
         finally:

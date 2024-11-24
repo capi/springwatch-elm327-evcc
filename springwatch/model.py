@@ -21,7 +21,8 @@ class WorldView:
         self._car_connected = False
         self._car_connected_when: Optional[datetime] = None
         self._disconnected_when: Optional[datetime] = None
-        self.charging = False
+        self.charging_enabled = False
+        self.is_charging = False
         self.sleep_voltage = sleep_voltage
         self.battery_12v_voltage = Reading(name="12V Battery Voltage", short_name="12v_voltage")
         self.battery_hv_soc_percent = Reading(name="HV Battery SoC %", short_name="hv_soc")
