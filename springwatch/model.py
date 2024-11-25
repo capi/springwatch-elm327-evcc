@@ -25,7 +25,8 @@ class WorldView:
         self._car_disconnected_when: Optional[datetime] = None
         self._session_start_when: Optional[datetime] = None  # a session may span a few short disconnects
         self.charging_enabled = False
-        self.is_charging = False
+        self._is_charging = False
+        self._charging_ended_when: Optional[datetime] = None
         self.sleep_voltage = sleep_voltage
         self.battery_12v_voltage = Reading(name="12V Battery Voltage", short_name="12v_voltage")
         self.battery_hv_soc_percent = Reading(name="HV Battery SoC %", short_name="hv_soc")
@@ -74,6 +75,20 @@ class WorldView:
     @property
     def session_active(self):
         return self.session_start_when is not None
+
+    @property
+    def is_charging(self):
+        return self._is_charging
+
+    @property
+    def charging_ended_when(self):
+        return self._charging_ended_when
+
+    @is_charging.setter
+    def is_charging(self, value: bool):
+        if value != self._is_charging:
+            self._is_charging = value
+            self._charging_ended_when = None if value else datetime.now(UTC)
 
     def is_car_awake(self):
         r = self.battery_12v_voltage

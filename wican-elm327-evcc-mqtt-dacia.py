@@ -85,7 +85,8 @@ def should_poll_hv_battery_info(world: WorldView):
     if not r.last_read or r.last_read < world.session_start_when:
         # last value was read last in a previous session
         return True, "Value is from previous session."
-    # update every 2 minutes
+    if world.charging_ended_when and r.last_read < world.charging_ended_when:
+        return True, "No update since charge end."
     if world.charging_enabled and not world.is_charging:
         # this is the wakeup case this is all about...
         td = timedelta(minutes=1)
