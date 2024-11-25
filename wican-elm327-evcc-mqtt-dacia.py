@@ -77,12 +77,12 @@ def poll_loop_lv_battery(world: WorldView, session: Elm327Session):
 
 
 def should_poll_hv_battery_info(world: WorldView):
-    if not world.car_connected or not world.car_connected_when:
+    if not world.car_connected or not world.session_start_when:
         return False, "Car is not connected."
     r = world.battery_hv_soc_percent
     if r.value is None:
         return True, "No known value yet."
-    if not r.last_read or r.last_read < world.car_connected_when:
+    if not r.last_read or r.last_read < world.session_start_when:
         # last value was read last in a previous session
         return True, "Value is from previous session."
     # update every 2 minutes
@@ -118,14 +118,18 @@ def poll_loop_hv_battery_soc_percent(world: WorldView, session: Elm327Session):
 def poll_loop(world: WorldView, elm327_con: Elm327Connection, evcc: Optional[EvccClient], publisher: ModelPublisher):
     with elm327_con.new_session() as session:
         world.car_connected = True
+        if world.session_start_when:
+            logging.info("Session Info: started=%s (%s ago)",
+                         world.session_start_when,
+                         datetime.now(UTC) - world.session_start_when)
         while True:
-            logging.debug("Session loop start.")
+            logging.debug("poll_loop loop start.")
             if evcc:
                 evcc.update(world)
             poll_loop_lv_battery(world, session)
             poll_loop_hv_battery_soc_percent(world, session)
             publisher.publish(world)
-            logging.debug("Session loop end. Sleeping 3 seconds")
+            logging.debug("poll_loop loop end. Sleeping 3 seconds")
             time.sleep(3)
 
 
@@ -142,10 +146,14 @@ while True:
     world.car_connected = False
     logging.info("Waiting for elm327 device to be reachable...")
     with Elm327Connection(WICAN_IP, WICAN_ELM327_PORT) as con:
+        last_session_start_when = world.session_start_when
         while not con.connect():
-            logging.debug("Not connected...")
+            logging.debug("Not connected. session_start_when=%s", world.session_start_when)
             # re-attempt connection in 1 second
             time.sleep(1)
+            if last_session_start_when != world.session_start_when and not world.session_active:
+                logging.info("Session timed out.")
+                last_session_start_when = world.session_start_when
         logging.info("Connection to car established.")
         try:
             poll_loop(world=world, elm327_con=con, evcc=evcc, publisher=publisher)

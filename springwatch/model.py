@@ -1,5 +1,7 @@
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from typing import Any, Optional
+
+SESSION_TIMEOUT_GRACE_MINUTES = 2
 
 
 class Reading:
@@ -20,7 +22,8 @@ class WorldView:
     def __init__(self, sleep_voltage: float):
         self._car_connected = False
         self._car_connected_when: Optional[datetime] = None
-        self._disconnected_when: Optional[datetime] = None
+        self._car_disconnected_when: Optional[datetime] = None
+        self._session_start_when: Optional[datetime] = None  # a session may span a few short disconnects
         self.charging_enabled = False
         self.is_charging = False
         self.sleep_voltage = sleep_voltage
@@ -36,10 +39,17 @@ class WorldView:
         if value == self._car_connected:
             return
         self._car_connected = value
+        now = datetime.now(UTC)
         if value:
-            self._car_connected_when = datetime.now(UTC)
+            self._car_connected_when = now
+            if self._car_disconnected_when and self._session_start_when:
+                td = now - self._car_disconnected_when
+                if td > timedelta(minutes=SESSION_TIMEOUT_GRACE_MINUTES):
+                    self._session_start_when = None
+            if self._session_start_when is None:
+                self._session_start_when = now
         else:
-            self._car_disconnected_when = datetime.now(UTC)
+            self._car_disconnected_when = now
 
     @property
     def car_connected_when(self):
@@ -49,14 +59,30 @@ class WorldView:
     def car_disconnected_when(self):
         return self._car_disconnected_when
 
+    @property
+    def session_start_when(self):
+        if self._session_start_when:
+            if self.car_connected:
+                return self._session_start_when
+            elif self._car_disconnected_when:
+                now = datetime.now(UTC)
+                td = now - self._car_disconnected_when
+                if td < timedelta(minutes=SESSION_TIMEOUT_GRACE_MINUTES):
+                    return self._session_start_when
+        return None
+
+    @property
+    def session_active(self):
+        return self.session_start_when is not None
+
     def is_car_awake(self):
         r = self.battery_12v_voltage
         return self.car_connected and r.value and r.value >= self.sleep_voltage
 
     def is_from_current_session(self, reading: Reading) -> bool:
-        con_when = self.car_connected_when
+        s_when = self.session_start_when
         r_when = reading.last_read
-        return con_when is not None and r_when is not None and r_when >= con_when
+        return s_when is not None and r_when is not None and r_when >= s_when
 
 
 class ModelPublisher():
