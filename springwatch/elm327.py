@@ -120,6 +120,7 @@ class Elm327Connection:
         self.timeout = timeout
         self._connected = False
         self._socket: Optional[socket.socket] = None
+        self._connection_exception_logged = False
         pass
 
     def __enter__(self):
@@ -139,13 +140,18 @@ class Elm327Connection:
             self._socket.settimeout(self.timeout)
             self._socket.connect((self.host, self.port))
             self._connected = True
+            self._connection_exception_logged = False
             CON_LOG.info(f"Connected to {self.host}:{self.port}")
         except socket.timeout:
             CON_LOG.debug(f"Timeout occurred. Unable to connect within {self.timeout} seconds.")
         except ConnectionRefusedError:
-            CON_LOG.warning("The server is not accepting connections from this host or port.")
+            level = logging.WARNING if not self._connection_exception_logged else logging.DEBUG
+            CON_LOG.log(level, "The server is not accepting connections from this host or port.")
+            self._connection_exception_logged = True
         except Exception as e:
+            level = logging.WARNING if not self._connection_exception_logged else logging.DEBUG
             CON_LOG.warning(f"An error occurred: {str(e)}")
+            self._connection_exception_logged = True
         return self._connected
 
     def close(self) -> None:
@@ -153,12 +159,12 @@ class Elm327Connection:
         try:
             if self._socket:
                 self._socket.close()
-                self._socket = None
                 if self._connected:
                     CON_LOG.info(f"Disconnected from {self.host}:{self.port}")
         except Exception as e:
             CON_LOG.warning(f"Failed closing previous socket: {e}")
         finally:
+            self._socket = None
             self._connected = False
 
     def new_session(self):
