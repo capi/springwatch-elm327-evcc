@@ -26,8 +26,8 @@ class EvccClient():
             charging = bool(loadpoint["charging"])
 
             if world.charging_enabled != enabled:
-                world.charging_enabled = enabled
                 EVCC_LOGGER.info("evcc: Charging enabled changing from %s to %s", world.charging_enabled, enabled)
+                world.charging_enabled = enabled
             if world.is_charging != charging:
                 EVCC_LOGGER.info("evcc: Charging changing from %s to %s", world.is_charging, charging)
                 world.is_charging = charging
