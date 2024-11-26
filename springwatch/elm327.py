@@ -150,7 +150,7 @@ class Elm327Connection:
             self._connection_exception_logged = True
         except Exception as e:
             level = logging.WARNING if not self._connection_exception_logged else logging.DEBUG
-            CON_LOG.warning(f"An error occurred: {str(e)}")
+            CON_LOG.log(level, f"An error occurred: {str(e)}")
             self._connection_exception_logged = True
         return self._connected
 
