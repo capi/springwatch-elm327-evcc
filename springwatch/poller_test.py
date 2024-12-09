@@ -36,3 +36,10 @@ def test_poll_hv_minor_change_accepted_without_retry():
     soc = poll_loop_hv_battery_soc_percent(car=CarspecificSettings(), world=world, reader=ListHvReaderMock([99.0]))
     assert soc == 99
 
+
+def test_poll_hv_bigger_change_only_after_retry():
+    world = WorldView(car_connected=True)
+    world.battery_hv_soc_percent.update(100, datetime.fromtimestamp(0, UTC))
+    soc = poll_loop_hv_battery_soc_percent(car=CarspecificSettings(), world=world,
+                                           reader=ListHvReaderMock([96.5, 95.0, 95.0]))
+    assert soc == 95

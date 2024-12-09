@@ -50,13 +50,30 @@ def poll_loop_hv_battery_soc_percent(car: CarspecificSettings,
                                      ) -> Optional[float]:
     should_poll, reason = should_poll_hv_battery_info(world)
     if should_poll:
-        logging.info("Polling for HV SoC: %s", reason)
-        raw_soc = reader.read_hv_battery_soc()
-        if raw_soc > 0:
-            soc_perc = raw_soc + car.soc_percent_correction
-            world.battery_hv_soc_percent.update(soc_perc)
-            logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", soc_perc, raw_soc)
-            return soc_perc
+        retries_remaining = 5
+        acceptable_min = (max(world.battery_hv_soc_percent.value - 2, 0)
+                          if world.battery_hv_soc_percent.value else -1)
+        acceptable_max = (max(world.battery_hv_soc_percent.value + 2, 0)
+                          if world.battery_hv_soc_percent.value else -1)
+        while retries_remaining > 0:
+            # for empty value, always require two polls
+            logging.info("Polling for HV SoC: %s", reason)
+            raw_soc = reader.read_hv_battery_soc()
+            if raw_soc > 0:
+                soc_perc = raw_soc + car.soc_percent_correction
+
+                if acceptable_min <= soc_perc and soc_perc <= acceptable_max:
+                    world.battery_hv_soc_percent.update(soc_perc)
+                    logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", soc_perc, raw_soc)
+                    return soc_perc
+                else:
+                    acceptable_min = soc_perc - 2.0
+                    acceptable_max = soc_perc + 2.0
+                reason = f"Confirm value {soc_perc:.2f}%, known value is {world.battery_hv_soc_percent.value or 0.0:.2f}."  # noqa
+                retries_remaining -= 1
+            else:
+                # NO DATA received
+                retries_remaining = 0
     return None
 
 
