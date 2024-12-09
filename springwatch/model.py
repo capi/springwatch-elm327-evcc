@@ -18,6 +18,11 @@ class Reading:
         return changed
 
 
+class CarspecificSettings:
+    def __init__(self, soc_percent_correction: float):
+        self.soc_percent_correction = soc_percent_correction
+
+
 class WorldView:
     def __init__(self, sleep_voltage: float):
         self._car_connected = False
