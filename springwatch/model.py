@@ -11,20 +11,22 @@ class Reading:
         self.value = value
         self.last_read: Optional[datetime] = None
 
-    def update(self, value: Any) -> bool:
+    def update(self, value: Any, ts: Optional[datetime] = None) -> bool:
+        if not ts:
+            ts = datetime.now(UTC)
         changed = self.value != value
         self.value = value
-        self.last_read = datetime.now(UTC)
+        self.last_read = ts
         return changed
 
 
 class CarspecificSettings:
-    def __init__(self, soc_percent_correction: float):
+    def __init__(self, soc_percent_correction: float = 0.0):
         self.soc_percent_correction = soc_percent_correction
 
 
 class WorldView:
-    def __init__(self, sleep_voltage: float):
+    def __init__(self, sleep_voltage: float = 13.0, car_connected: bool = False):
         self._car_connected = False
         self._car_connected_when: Optional[datetime] = None
         self._car_disconnected_when: Optional[datetime] = None
@@ -35,6 +37,8 @@ class WorldView:
         self.sleep_voltage = sleep_voltage
         self.battery_12v_voltage = Reading(name="12V Battery Voltage", short_name="12v_voltage")
         self.battery_hv_soc_percent = Reading(name="HV Battery SoC %", short_name="hv_soc")
+        # assign properties to trigger correct timestamp behavior
+        self.car_connected = car_connected
 
     @property
     def car_connected(self):

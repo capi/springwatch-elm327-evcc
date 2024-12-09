@@ -2,15 +2,15 @@ from datetime import UTC, datetime, timedelta
 import logging
 import time
 from typing import Optional
-from springwatch.elm327 import Elm327Connection, Elm327Session
+from springwatch.elm327 import Elm327Connection, ReadsDeviceBatteryVoltage, ReadsHvBatterySoc
 from springwatch.evcc import EvccClient
 from springwatch.model import CarspecificSettings, ModelPublisher, WorldView
 
 
-def poll_loop_lv_battery(world: WorldView, session: Elm327Session):
+def poll_loop_lv_battery(world: WorldView, reader: ReadsDeviceBatteryVoltage):
     # we update the 12V battery reading on every tick
     # it's our indicator if car is awake or sleeping
-    v = session.read_device_battery_voltage()
+    v = reader.read_device_battery_voltage()
     if v > 0:
         if world.battery_12v_voltage.update(v):
             logging.info("Device voltage changed: %.1fV", v)
@@ -44,16 +44,20 @@ def should_poll_hv_battery_info(world: WorldView):
     return res, reason
 
 
-def poll_loop_hv_battery_soc_percent(car: CarspecificSettings, world: WorldView, session: Elm327Session):
+def poll_loop_hv_battery_soc_percent(car: CarspecificSettings,
+                                     world: WorldView,
+                                     reader: ReadsHvBatterySoc
+                                     ) -> Optional[float]:
     should_poll, reason = should_poll_hv_battery_info(world)
     if should_poll:
         logging.info("Polling for HV SoC: %s", reason)
-        raw_soc = session.read_hv_battery_soc()
+        raw_soc = reader.read_hv_battery_soc()
         if raw_soc > 0:
             soc_perc = raw_soc + car.soc_percent_correction
             world.battery_hv_soc_percent.update(soc_perc)
             logging.info("HV Battery SoC: %.2f%% (raw: %.2f%%)", soc_perc, raw_soc)
-        pass
+            return soc_perc
+    return None
 
 
 def poll_loop(car: CarspecificSettings, world: WorldView, elm327_con: Elm327Connection,

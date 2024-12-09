@@ -1,6 +1,6 @@
 import logging
 import socket
-from typing import Optional
+from typing import Optional, Protocol
 
 
 COMM_LOG = logging.getLogger("elm327.comm")
@@ -48,6 +48,16 @@ class Elm327Communicator:
         COMM_LOG.info("TX: %s", cmd)
         self._socket.send(cmd)
         self._socket.send(b"\r")
+
+
+class ReadsDeviceBatteryVoltage(Protocol):
+    def read_device_battery_voltage(self) -> float:
+        return 0.0
+
+
+class ReadsHvBatterySoc(Protocol):
+    def read_hv_battery_soc(self) -> float:
+        return 0.0
 
 
 class Elm327Session:
