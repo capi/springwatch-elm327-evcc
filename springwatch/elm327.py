@@ -60,6 +60,11 @@ class ReadsHvBatterySoc(Protocol):
         return 0.0
 
 
+class ReadsHvBatterySoh(Protocol):
+    def read_hv_battery_soh(self) -> float:
+        return 0.0
+
+
 class Elm327Session:
     INIT_COMMANDS = [
         # b"ATZ",    # reset         HANDLED IN RESET
@@ -118,6 +123,17 @@ class Elm327Session:
         if len(res) != 16:
             SESSION_LOG.warning("015B: Unsupported response length %s for %s", len(res), res)
             return 0.0
+        value_byte_str = res[-2:]  # last 2 hex chars
+        value_byte = int(value_byte_str, 16)
+        return float(value_byte) * 100 / 255
+
+    def read_hv_battery_soh(self) -> float:
+        res = self._comm.send_cmd_get_first_line(b"01B2")
+        if res == b'NO DATA':
+            SESSION_LOG.warning("Querying HV battery SoH: NO DATA")
+            return 0.0
+        if len(res) != 16:
+            SESSION_LOG.warning("01B2: Unsupported response length %s for %s", len(res), res)
         value_byte_str = res[-2:]  # last 2 hex chars
         value_byte = int(value_byte_str, 16)
         return float(value_byte) * 100 / 255

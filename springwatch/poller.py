@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 import logging
 import time
 from typing import Optional
-from springwatch.elm327 import Elm327Connection, ReadsDeviceBatteryVoltage, ReadsHvBatterySoc
+from springwatch.elm327 import Elm327Connection, ReadsDeviceBatteryVoltage, ReadsHvBatterySoc, ReadsHvBatterySoh
 from springwatch.evcc import EvccClient
 from springwatch.model import CarspecificSettings, ModelPublisher, WorldView
 
@@ -77,6 +77,32 @@ def poll_loop_hv_battery_soc_percent(car: CarspecificSettings,
     return None
 
 
+def should_poll_hv_battery_health_info(world: WorldView):
+    if not world.car_connected or not world.session_start_when:
+        return False, "Car is not connected."
+    soc = world.battery_hv_soc_percent
+    soh = world.battery_hv_soh_percent
+    if soh.value is None:
+        return True, "No known value yet."
+    if soc.last_read and soh.last_read and soh.last_read < soc.last_read:
+        return True, "SoH is older than SoC"
+    return False, "Information is up-to-date."
+
+
+def poll_loop_hv_battery_soh_percent(car: CarspecificSettings,
+                                     world: WorldView,
+                                     reader: ReadsHvBatterySoh
+                                     ) -> Optional[float]:
+    should_poll, reason = should_poll_hv_battery_health_info(world)
+    if should_poll:
+        logging.info("Polling for HV SoH: %s", reason)
+        soh = reader.read_hv_battery_soh()
+        if soh > 0.0:
+            logging.info("HV Battery SoH: %.2f%%", soh)
+            world.battery_hv_soh_percent.update(soh)
+    return None
+
+
 def poll_loop(car: CarspecificSettings, world: WorldView, elm327_con: Elm327Connection,
               evcc: Optional[EvccClient], publisher: ModelPublisher):
     with elm327_con.new_session() as session:
@@ -91,6 +117,7 @@ def poll_loop(car: CarspecificSettings, world: WorldView, elm327_con: Elm327Conn
                 evcc.update(world)
             poll_loop_lv_battery(world, session)
             poll_loop_hv_battery_soc_percent(car, world, session)
+            poll_loop_hv_battery_soh_percent(car, world, session)
             publisher.publish(world)
             logging.debug("poll_loop loop end. Sleeping 3 seconds")
             time.sleep(3)

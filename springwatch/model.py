@@ -37,6 +37,7 @@ class WorldView:
         self.sleep_voltage = sleep_voltage
         self.battery_12v_voltage = Reading(name="12V Battery Voltage", short_name="12v_voltage")
         self.battery_hv_soc_percent = Reading(name="HV Battery SoC %", short_name="hv_soc")
+        self.battery_hv_soh_percent = Reading(name="HV Battery SoH %", short_name="hv_soh")
         # assign properties to trigger correct timestamp behavior
         self.car_connected = car_connected
 
@@ -122,7 +123,7 @@ class StdOutModelPublisher(ModelPublisher):
         ModelPublisher.__init__(self)
 
     def publish(self, world: WorldView) -> None:
-        readings = [world.battery_12v_voltage, world.battery_hv_soc_percent]
+        readings = [world.battery_12v_voltage, world.battery_hv_soc_percent, world.battery_hv_soh_percent]
         print("-" * 50)
         for reading in readings:
             if reading.value is not None:

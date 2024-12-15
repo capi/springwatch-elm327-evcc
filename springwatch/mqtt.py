@@ -18,7 +18,7 @@ class MqttModelPublisher(ModelPublisher):
     def publish(self, world: WorldView) -> None:
         MQTT_LOGGER.debug("Publishing to MQTT (host=%s, port=%s, base_topic=%s)", self.host, self.port, self.base_topic)
         try:
-            readings = [world.battery_12v_voltage, world.battery_hv_soc_percent]
+            readings = [world.battery_12v_voltage, world.battery_hv_soc_percent, world.battery_hv_soh_percent]
             msgs = []
             hwm = self.publish_highwater_mark
             for reading in readings:
