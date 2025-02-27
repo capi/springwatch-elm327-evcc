@@ -32,7 +32,8 @@ class WorldView:
         self._car_connected_when: Optional[datetime] = None
         self._car_disconnected_when: Optional[datetime] = None
         self._session_start_when: Optional[datetime] = None  # a session may span a few short disconnects
-        self.charging_enabled = False
+        self._charging_enabled = False
+        self._charging_enabled_when: Optional[datetime] = None
         self._is_charging = False
         self._charging_ended_when: Optional[datetime] = None
         self.sleep_voltage = sleep_voltage
@@ -86,6 +87,20 @@ class WorldView:
     @property
     def session_active(self):
         return self.session_start_when is not None
+
+    @property
+    def charging_enabled(self):
+        return self._charging_enabled
+
+    @charging_enabled.setter
+    def charging_enabled(self, value: bool):
+        if value != self._charging_enabled:
+            self._charging_enabled = value
+            self._charging_enabled_when = datetime.now(UTC) if value else None
+
+    @property
+    def charging_enabled_when(self):
+        return self._charging_enabled_when
 
     @property
     def is_charging(self):

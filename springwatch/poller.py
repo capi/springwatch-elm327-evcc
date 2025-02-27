@@ -27,6 +27,8 @@ def should_poll_hv_battery_info(world: WorldView, fully_charged_limit: float):
         return True, "Value is from previous session."
     if world.charging_ended_when and r.last_read < world.charging_ended_when:
         return True, "No update since charge end."
+    if world.charging_enabled and world.charging_enabled_when and r.last_read < world.charging_enabled_when:
+        return True, "No update since charging enabled."
     if world.charging_enabled and not world.is_charging:
         # this is the wakeup case this is all about...
         if r.value < fully_charged_limit:
