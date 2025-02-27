@@ -40,7 +40,7 @@ def should_poll_hv_battery_info(world: WorldView, fully_charged_limit: float):
             td = timedelta(hours=1)
             reason = f"Charging enabled but not charging (battery almost full: {r.value}%>={fully_charged_limit}%))..."
     elif world.is_charging:
-        td = timedelta(minutes=5)
+        td = timedelta(minutes=2)
         reason = "Currently charging."
     elif world.is_car_awake():
         reason = "Car is awake."
