@@ -16,7 +16,7 @@ def poll_loop_lv_battery(world: WorldView, reader: ReadsDeviceBatteryVoltage):
             logging.info("Device voltage changed: %.1fV", v)
 
 
-def should_poll_hv_battery_info(world: WorldView):
+def should_poll_hv_battery_info(world: WorldView, fully_charged_limit: float):
     if not world.car_connected or not world.session_start_when:
         return False, "Car is not connected."
     r = world.battery_hv_soc_percent
@@ -29,8 +29,14 @@ def should_poll_hv_battery_info(world: WorldView):
         return True, "No update since charge end."
     if world.charging_enabled and not world.is_charging:
         # this is the wakeup case this is all about...
-        td = timedelta(minutes=1)
-        reason = "Charging enabled but not charging..."
+        if r.value < fully_charged_limit:
+            # battery is not full, we want to wake it up
+            td = timedelta(minutes=1)
+            reason = f"Charging enabled but not charging (battery not full: {r.value}%<{fully_charged_limit}%)..."
+        else:
+            # battery is (almost) full, it's possible the car does not accept any more power
+            td = timedelta(hours=1)
+            reason = f"Charging enabled but not charging (battery almost full: {r.value}%>={fully_charged_limit}%))..."
     elif world.is_charging:
         td = timedelta(minutes=5)
         reason = "Currently charging."
@@ -48,7 +54,7 @@ def poll_loop_hv_battery_soc_percent(car: CarspecificSettings,
                                      world: WorldView,
                                      reader: ReadsHvBatterySoc
                                      ) -> Optional[float]:
-    should_poll, reason = should_poll_hv_battery_info(world)
+    should_poll, reason = should_poll_hv_battery_info(world, car.soc_almost_full_limit)
     if should_poll:
         retries_remaining = 5
         acceptable_min = (max(world.battery_hv_soc_percent.value - 2, 0)

@@ -21,8 +21,9 @@ class Reading:
 
 
 class CarspecificSettings:
-    def __init__(self, soc_percent_correction: float = 0.0):
+    def __init__(self, soc_percent_correction: float = 0.0, soc_almost_full_limit: float = 99.0):
         self.soc_percent_correction = soc_percent_correction
+        self.soc_almost_full_limit = soc_almost_full_limit
 
 
 class WorldView:

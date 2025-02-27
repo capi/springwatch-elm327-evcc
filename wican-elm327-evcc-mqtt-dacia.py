@@ -43,6 +43,7 @@ try:
     WICAN_IP = print_and_get_required_env("ELM327_HOST", default="127.0.0.1")
     WICAN_ELM327_PORT = int(print_and_get_required_env("ELM327_PORT", default="3333"))
     SOC_PERCENT_CORRECTION = float(print_and_get_required_env("SOC_PERCENT_CORRECTION", "0.0"))
+    SOC_ALMOST_FULL_LIMIT = float(print_and_get_required_env("SOC_ALMOST_FULL_LIMIT", "99.0"))
     OBD2_SLEEP_VOLTAGE = float(print_and_get_required_env("OBD2_SLEEP_VOLTAGE", "13.0"))
     MODEL_PUBLISHER = print_and_get_required_env("MODEL_PUBLISHER", "none")
     MQTT_BROKER_HOST = print_and_get_required_env("MQTT_BROKER_HOST", "127.0.0.1")
@@ -73,6 +74,6 @@ else:
     logging.warning("Unknown publisher: %s", MODEL_PUBLISHER)
     publisher = ModelPublisher()
 
-car = CarspecificSettings(soc_percent_correction=SOC_PERCENT_CORRECTION)
+car = CarspecificSettings(soc_percent_correction=SOC_PERCENT_CORRECTION, soc_almost_full_limit=SOC_ALMOST_FULL_LIMIT)
 
 main_loop(car=car, world=world, evcc=evcc, publisher=publisher, elm327_host=WICAN_IP, elm327_port=WICAN_ELM327_PORT)
