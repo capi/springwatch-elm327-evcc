@@ -42,7 +42,7 @@ While in theory any network-enabled OBD-II adapter that supports the ELM327 prot
 
 ### Configuration
 - Copy `.env.template` to `.env` and fill in your settings (MQTT broker, ELM327 host/port, etc.).
-- See comments in `.env.template` for details on each variable.
+- See comments in [`.env.template`](.env.template) for details on each variable.
 
 ### Usage
 Run the main script:
@@ -89,7 +89,7 @@ services:
     restart: unless-stopped
 ```
 
-Make sure your `.env` file contains the required environment variables (see `.env.template`).
+Make sure your `.env` file contains the required environment variables (see [`.env.template`](.env.template)).
 
 Build and start the service:
 ```sh
