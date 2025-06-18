@@ -49,6 +49,7 @@ try:
     MQTT_BROKER_HOST = print_and_get_required_env("MQTT_BROKER_HOST", "127.0.0.1")
     MQTT_BROKER_PORT = int(print_and_get_required_env("MQTT_BROKER_PORT", "1883"))
     MQTT_BASE_TOPIC = print_and_get_required_env("MQTT_BASE_TOPIC", f"springwatch/{WICAN_IP}")
+    MQTT_FORMAT = print_and_get_required_env("MQTT_FORMAT", "PLAIN")
     EVCC_URL = print_and_get_required_env("EVCC_URL", "")
     EVCC_LOADPOINT_ID = int(print_and_get_required_env("EVCC_LOADPOINT_ID", "1"))
     logging.info("-" * 40)
@@ -59,7 +60,12 @@ except Exception as e:
 MODEL_PUBLISHER_FACTORIES = {
     "none": lambda: ModelPublisher(),
     "stdout": lambda: StdOutModelPublisher(),
-    "mqtt": lambda: MqttModelPublisher(host=MQTT_BROKER_HOST, port=MQTT_BROKER_PORT, base_topic=MQTT_BASE_TOPIC)
+    "mqtt": lambda: MqttModelPublisher(
+        host=MQTT_BROKER_HOST,
+        port=MQTT_BROKER_PORT,
+        base_topic=MQTT_BASE_TOPIC,
+        mqtt_format=MQTT_FORMAT
+    )
 }
 
 
