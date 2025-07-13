@@ -16,7 +16,16 @@ class EvccClient():
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
-        return data["result"]
+
+        # Breaking API change incoming: https://github.com/evcc-io/evcc/pull/22299
+        # Handle both old format (with "result" wrapper) and new format (without wrapper)
+        # This provides backward compatibility during the API transition
+        if "result" in data:
+            # Old format: {"result": {"loadpoints": [...], ...}}
+            return data["result"]
+        else:
+            # New format: {"loadpoints": [...], ...}
+            return data
 
     def update(self, world: WorldView):
         try:
